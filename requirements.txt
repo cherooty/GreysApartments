@@ -1,0 +1,11 @@
+aiogram>=3.16,<3.21          # актуальная ветка Aiogram 3.x
+python-dotenv>=1.0.1        # загрузка .env
+SQLAlchemy>=2.0.19,<2.1     # асинхронный ORM
+asyncpg>=0.29,<0.30         # PostgreSQL драйвер
+aiohttp>=3.9,<3.11          # HTTP-клиент для aiogram
+pydantic>=2.6,<2.8          # типы, включая PostgresDsn
+pydantic-settings>=2.0      # BaseSettings для Pydantic v2
+uvloop>=0.19,<0.20; sys_platform != "win32"
+aiogram-calendar==0.6.0
+requests>=2.32.4,<3.0.0
+beautifulsoup4>=4.13.4,<5.0.0
