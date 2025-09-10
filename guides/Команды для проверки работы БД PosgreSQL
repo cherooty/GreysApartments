@@ -1,0 +1,96 @@
+ПОСТГРЕС: КОМАНДЫ ДЛЯ ПРОВЕРКИ РАБОТОСПОСОБНОСТИ (С УЧЁТОМ .env)
+
+Подключиться суперюзером:
+sudo -u postgres psql
+
+Сначала подключись к нужной базе:
+psql -U greys_bot -d greysdb
+
+--------------------------
+
+0) Загрузка .env в текущую сессию (выполнить из корня проекта)
+set -a && source .env && set +a
+echo "$DATABASE_URL"
+
+1) Сервис PostgreSQL (Ubuntu)
+systemctl status postgresql | cat
+# при необходимости запустить
+sudo systemctl start postgresql
+# автозапуск при старте ОС
+sudo systemctl enable postgresql
+
+2) Доступность порта 5432
+# локально
+ss -ltnp | grep 5432 || netstat -ltnp | grep 5432
+# с клиента до удалённого хоста
+nc -vz <host> 5432
+
+3) Готовность сервера
+# через URI из .env (рекомендуется)
+pg_isready -d "$DATABASE_URL"
+# альтернатива (явно по параметрам)
+# pg_isready -h <host> -p 5432 -U <user>
+
+4) Проверка версии сервера через psql (URI из .env)
+psql "$DATABASE_URL" -c "SELECT version();"
+
+5) Альтернатива: подключение по параметрам (без .env)
+PGPASSWORD=<password> psql -h <host> -p 5432 -U <user> -d <database> -c "SELECT version();"
+
+6) Базовые проверки в psql
+# список баз данных
+\l
+# список ролей
+\du
+# подключиться к нужной базе
+\c <database>
+# проверить схему и таблицы
+\dn
+\dt
+# выполнить простой запрос
+SELECT 1;
+
+7) Создание пользователя и базы (при необходимости)
+# создать роль с паролем (выполнять от суперпользователя, напр. postgres)
+createuser -h <host> -p 5432 -U postgres -P <user>
+
+# создать базу
+createdb -h <host> -p 5432 -U <user> <database>
+
+# или через psql
+psql -h <host> -U postgres -c "CREATE USER <user> WITH PASSWORD '<password>';"
+psql -h <host> -U postgres -c "CREATE DATABASE <database> OWNER <user>;"
+psql -h <host> -U postgres -d <database> -c "GRANT ALL PRIVILEGES ON DATABASE <database> TO <user>;"
+
+8) Проверка расширений и настроек
+psql "$DATABASE_URL" -c "SHOW server_version;"
+psql "$DATABASE_URL" -c "SHOW timezone;"
+psql "$DATABASE_URL" -c "SELECT current_user;"
+
+9) Мини‑проверка DDL/DML (в тестовой базе!)
+psql "$DATABASE_URL" -c "CREATE TABLE IF NOT EXISTS healthcheck(id int primary key, note text);"
+psql "$DATABASE_URL" -c "INSERT INTO healthcheck(id, note) VALUES (1, 'ok') ON CONFLICT (id) DO NOTHING;"
+psql "$DATABASE_URL" -c "SELECT * FROM healthcheck;"
+
+10) Быстрый Python‑тест через asyncpg (читает .env)
+python - <<'PY'
+import os, asyncio, asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+dsn = os.getenv('DATABASE_URL')
+print('DATABASE_URL:', dsn)
+async def main():
+    conn = await asyncpg.connect(dsn=dsn)
+    v = await conn.fetchval('SELECT 1')
+    await conn.close()
+    print('OK, DB responded:', v)
+asyncio.run(main())
+PY
+
+11) Частые проблемы
+- FATAL: role "<user>" does not exist — создайте роль (см. п.7)
+- could not connect to server: Connection refused — проверьте, что сервис запущен и порт виден (п.1–2)
+- no pg_hba.conf entry — настройте доступ в файле pg_hba.conf и перезапустите сервис
+- SSL errors — попробуйте добавить sslmode=disable в строку подключения (только в доверенной сети)
+
+
